@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 
-namelist = open('C:/Users/Atte/Documents/Ylijopisto/makeMore_py/src/names.txt', 'r').read().splitlines()
+namelist = open('./src/names.txt', 'r').read().splitlines()
 ab = torch.zeros((27,27), dtype=torch.int32)
 chars = sorted(list(set(''.join(namelist))))
 

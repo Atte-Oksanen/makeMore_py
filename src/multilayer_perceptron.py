@@ -87,17 +87,17 @@ class Tanh:
   
 
 torchGenerator = torch.Generator().manual_seed(2147483647)
-neuronCount = 200
-featureDimensions = 10
+neuronCount = 300
+featureDimensions = 30
 matrix2ndDimensionSize = featureDimensions * blockSize
 C = torch.randn((vocabSize, featureDimensions), generator=torchGenerator) #Embedding table
 layers = [
   Linear(featureDimensions * blockSize, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
-  Linear(           neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
-  Linear(           neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
-  Linear(           neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
-  Linear(           neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
-  Linear(           neuronCount, vocabSize, bias=False), BatchNorm1d(vocabSize),
+  Linear(neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
+  Linear(neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
+  Linear(neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
+  Linear(neuronCount, neuronCount, bias=False), BatchNorm1d(neuronCount), Tanh(),
+  Linear(neuronCount, vocabSize, bias=False), BatchNorm1d(vocabSize),
 ]
 
 with torch.no_grad():
@@ -123,20 +123,21 @@ bnStdRunning = torch.zeros((1, neuronCount))
 
 startTime = time.time()
 batchSize = 32
-maxSteps = 10000
+maxSteps = 200000
 for i in range(maxSteps):
-  ix = torch.randint(0, xTrain.shape[0], (batchSize,))
+  ix = torch.randint(0, xTrain.shape[0], (batchSize,), generator=torchGenerator)
   embeddings = C[xTrain[ix]]
   x = embeddings.view(embeddings.shape[0], -1)
   for layer in layers:
     x = layer(x)
   loss = F.cross_entropy(x, yTrain[ix])
-  
+  if i % 1000 == 0:
+    print(i, '/', maxSteps, loss.item())
   for p in parameters:
     p.grad = None
   loss.backward()
   
-  if(i > 20000):
+  if(i > maxSteps / 2):
     lr = 0.01
   else:
     lr = 0.1
@@ -160,23 +161,27 @@ def dataSplitLoss(split):
   x = embeddings.view(embeddings.shape[0], -1)
   for layer in layers:
     x = layer(x)
+
   loss = F.cross_entropy(x, y)
   print(split, loss.item())
 
 dataSplitLoss('train')
 dataSplitLoss('val')
 
+with torch.no_grad():
+  for layer in layers:
+    if isinstance(layer, BatchNorm1d):
+      layer.training = False
 
 out = []
-for i in range(1):
+for i in range(20):
   singleName = []
   context = [0] * blockSize
   while True:
     embeddings = C[torch.tensor([context])]
     x = embeddings.view(embeddings.shape[0], -1)
-    for layer in layers[:1]:
+    for layer in layers:
       x = layer(x)
-      print(x)
     logits = x
     probs = F.softmax(logits, dim=1)
     ix = torch.multinomial(probs, num_samples=1, generator=torchGenerator).item()
